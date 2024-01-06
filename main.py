@@ -127,7 +127,7 @@ class MainFrame(wx.Frame):
             return
         dataset=dc.DatasetCreator()
         dataset.loadDirectory(self._selectedDirectory)
-        dataset.createDataset()
+        dataset.createDataset((640,640))
 
         event.Skip()
     # Load images from selected directory
