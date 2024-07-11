@@ -27,17 +27,15 @@ class ImagePanel(wx.Panel):
             dc = wx.PaintDC(self)
             s_width, s_height = self.GetSize()
             b_width, b_height = self._imageBitmap.GetSize()
-            
-            # Clear the background
             dc.Clear()
             
-            # Calculate the position to center the image
+            # Centriraj sliku
             x = (s_width - b_width) // 2
             y = (s_height - b_height) // 2
             
-            # Draw the image
-            dc.DrawBitmap(self._imageBitmap, x, y, True)
-    def on_size(self, event):
+            dc.DrawBitmap(self._imageBitmap, x, y,True)
+    
+    def get_size_keep_aspect_ratio(self):
         if self._originalImage is not None:
             s_width, s_height = self.GetSize()
             i_height, i_width, _ = self._originalImage.shape
@@ -50,6 +48,37 @@ class ImagePanel(wx.Panel):
             else:
                 new_width = s_width
                 new_height = int(s_width / aspect_ratio)
+
+            return (new_width,new_height)
+        return None
+    
+    def convert_pos(self, pt):
+        h,w,_=self._image.shape
+        W,H = self.GetSize()
+        x,y=pt
+        # Calculate offset of image within the given size
+        if w * H < W * h:  # fit on height
+            s = w
+            S = w * H // h
+            o = W - S
+            o //= 2
+            x -= o
+        else:  # fit on width
+            s = h
+            S = h * W // w
+            o = H - S
+            o //= 2
+            y-= o
+
+        x = x * s // S
+        y = y * s // S
+        
+        return (x,y)
+
+    
+    def on_size(self, event):
+        if self._originalImage is not None:
+            new_width,new_height=self.get_size_keep_aspect_ratio()
             
             self._image = cv2.resize(self._originalImage, (new_width, new_height), interpolation=cv2.INTER_AREA)
             
@@ -72,10 +101,11 @@ class ImagePanel(wx.Panel):
         if self._image is not None:
             x = event.GetX()
             y = event.GetY()
-            width,height=self.GetSize()
-            if x < self._image.shape[1] and y < self._image.shape[0]:
+            height,width,_=self._image.shape
+            x,y=self.convert_pos((x,y))
+            if x >=0 and x<=width and y >= 0 and y<=height:
                 self._points.addPoint((height,width),(x,y),self._classNumber)
-                self._image=cv2.resize(self._originalImage, self.GetSize(),cv2.INTER_AREA)
+                self._image = cv2.resize(self._originalImage, (width,height), interpolation=cv2.INTER_AREA)
                 self._points.drawRectangles(self._image)
                 height, width, _ = self._image.shape
                 self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
@@ -85,10 +115,11 @@ class ImagePanel(wx.Panel):
         if self._image is not None:
             x = event.GetX()
             y = event.GetY()
-            width,height=self.GetSize()
-            if x < self._image.shape[1] and y < self._image.shape[0]:
+            height,width,_=self._image.shape
+            x,y=self.convert_pos((x,y))
+            if x >=0 and x<=width and y >= 0 and y<=height:
                 if self._points.deleteRectangle((x,y),(height,width)):
-                    self._image=cv2.resize(self._originalImage, self.GetSize(),cv2.INTER_AREA)
+                    self._image=cv2.resize(self._originalImage, (width,height),cv2.INTER_AREA)
                     self._points.drawRectangles(self._image)
                     height, width, _ = self._image.shape
                     self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
