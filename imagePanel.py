@@ -21,20 +21,26 @@ class ImagePanel(wx.Panel):
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
         self.Bind(wx.EVT_KEY_DOWN,self.on_key_down)
-
     def on_paint(self, event):
         if self._imageBitmap is not None:
             dc = wx.PaintDC(self)
             s_width, s_height = self.GetSize()
             b_width, b_height = self._imageBitmap.GetSize()
-            dc.Clear()
+            
             
             # Centriraj sliku
             x = (s_width - b_width) // 2
             y = (s_height - b_height) // 2
-            
+            dc.Clear()
             dc.DrawBitmap(self._imageBitmap, x, y,True)
-    
+    def showFrame(self):
+        if self._originalImage is not None:
+            new_width,new_height=self.get_size_keep_aspect_ratio()    
+            self._image = cv2.resize(self._originalImage, (new_width, new_height))
+            self._points.drawRectangles(self._image)
+            height, width, _ = self._image.shape
+            self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
+            self.Refresh()
     def get_size_keep_aspect_ratio(self):
         if self._originalImage is not None:
             s_width, s_height = self.GetSize()
@@ -51,7 +57,6 @@ class ImagePanel(wx.Panel):
 
             return (new_width,new_height)
         return None
-    
     def convert_pos(self, pt):
         h,w,_=self._image.shape
         W,H = self.GetSize()
@@ -74,17 +79,8 @@ class ImagePanel(wx.Panel):
         y = y * s // S
         
         return (x,y)
-
-    
     def on_size(self, event):
-        if self._originalImage is not None:
-            new_width,new_height=self.get_size_keep_aspect_ratio()
-            
-            self._image = cv2.resize(self._originalImage, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            
-            height, width, _ = self._image.shape
-            self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
-            self.Refresh()
+        self.showFrame()
     def LoadImage(self, path):
         self._imagePath = path
         self.loadPointsFromLabel()
@@ -92,11 +88,7 @@ class ImagePanel(wx.Panel):
         self._originalImage=cv2.cvtColor(self._originalImage,cv2.COLOR_BGR2RGB)
         if self._originalImage is None:
             return False
-        self._image=cv2.resize(self._originalImage, self.GetSize(),cv2.INTER_AREA)
-        self._points.drawRectangles(self._image)
-        height, width, _ = self._image.shape
-        self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
-        self.Refresh()
+        self.showFrame()   
     def on_left_down(self, event):
         if self._image is not None:
             x = event.GetX()
@@ -105,11 +97,8 @@ class ImagePanel(wx.Panel):
             x,y=self.convert_pos((x,y))
             if x >=0 and x<=width and y >= 0 and y<=height:
                 self._points.addPoint((height,width),(x,y),self._classNumber)
-                self._image = cv2.resize(self._originalImage, (width,height), interpolation=cv2.INTER_AREA)
-                self._points.drawRectangles(self._image)
-                height, width, _ = self._image.shape
-                self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
-                self.Refresh()
+                self.showFrame()
+
         event.Skip()
     def on_right_down(self, event):
         if self._image is not None:
@@ -119,11 +108,8 @@ class ImagePanel(wx.Panel):
             x,y=self.convert_pos((x,y))
             if x >=0 and x<=width and y >= 0 and y<=height:
                 if self._points.deleteRectangle((x,y),(height,width)):
-                    self._image=cv2.resize(self._originalImage, (width,height),cv2.INTER_AREA)
-                    self._points.drawRectangles(self._image)
-                    height, width, _ = self._image.shape
-                    self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
-                    self.Refresh()
+                    self.showFrame()
+
         event.Skip()
     def drawImage(self):
         if self._image is None:
@@ -168,11 +154,8 @@ class ImagePanel(wx.Panel):
             x1,y1,x2,y2=box
             self._points.addPoint(self._originalImage.shape,(x1,y1))
             self._points.addPoint(self._originalImage.shape,(x2,y2),class_id)
-        self._image=cv2.resize(self._originalImage, self.GetSize(),cv2.INTER_AREA)
-        self._points.drawRectangles(self._image)
-        height, width, _ = self._image.shape
-        self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
-        self.Refresh()
+        self.showFrame()
+
     def on_key_down(self,event):
         keyPressed=event.GetKeyCode()
         if(keyPressed==wx.WXK_NUMPAD0):
@@ -195,7 +178,7 @@ class ImagePanel(wx.Panel):
             self._classNumber=8
         elif (keyPressed==wx.WXK_NUMPAD9):
             self._classNumber=9
-
+        
         event.Skip()
 
 

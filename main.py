@@ -6,6 +6,7 @@ class MainFrame(wx.Frame):
     def __init__(self,parent,title='Labeling App'):
         super(MainFrame, self).__init__(parent, title=title)
         self.Maximize(True)
+        self.config = wx.Config("LabelingApp")
         # Panels
         self._mainPanel = wx.Panel(self)
         self._controlPanel = wx.Panel(self._mainPanel)
@@ -65,10 +66,12 @@ class MainFrame(wx.Frame):
     
     def _OnLoadDirectory(self, event):
         #select directory
-        dlg=wx.DirDialog(self, "Choose a directory:", style=wx.DD_DEFAULT_STYLE)
+        last_path = self.config.Read("LastPathDir", "")
+        dlg=wx.DirDialog(self, "Choose a directory:", style=wx.DD_DEFAULT_STYLE,defaultPath=last_path)
         
         if dlg.ShowModal() == wx.ID_OK:
             self._selectedDirectory = dlg.GetPath()
+            self.config.Write("LastPathDir", self._selectedDirectory)
             self._LoadImages()
         dlg.Destroy()
         event.Skip()
@@ -126,9 +129,11 @@ class MainFrame(wx.Frame):
             self._imagePanel.detectPointsWithModel()
             event.Skip()
             return
-        dlg=wx.FileDialog(self, "Choose a model:", style=wx.DD_DEFAULT_STYLE)
+        last_path = self.config.Read("LastPathModel", "")
+        dlg=wx.FileDialog(self, "Choose a model:", style=wx.DD_DEFAULT_STYLE,defaultDir=os.path.dirname(last_path))
         if dlg.ShowModal() == wx.ID_OK:
             self._modelPath = dlg.GetPath()
+            self.config.Write("LastPathModel", self._modelPath)
         dlg.Destroy()
         self._imagePanel.loadModel(self._modelPath)
         self._imagePanel.detectPointsWithModel()
