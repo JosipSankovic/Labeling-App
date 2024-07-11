@@ -14,7 +14,8 @@ class ImagePanel(wx.Panel):
         self._imageLabelSize = None
         self._points=None
         self._classNumber=0
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        # self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
+        self.SetBackgroundColour("#2E2E2E")
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
@@ -23,17 +24,41 @@ class ImagePanel(wx.Panel):
 
     def on_paint(self, event):
         if self._imageBitmap is not None:
-            dc = wx.BufferedPaintDC(self)
-            dc.DrawBitmap(self._imageBitmap, 0, 0)
+            dc = wx.PaintDC(self)
+            s_width, s_height = self.GetSize()
+            b_width, b_height = self._imageBitmap.GetSize()
+            
+            # Clear the background
+            dc.Clear()
+            
+            # Calculate the position to center the image
+            x = (s_width - b_width) // 2
+            y = (s_height - b_height) // 2
+            
+            # Draw the image
+            dc.DrawBitmap(self._imageBitmap, x, y, True)
     def on_size(self, event):
         if self._originalImage is not None:
-            self._image=cv2.resize(self._originalImage, self.GetSize(),cv2.INTER_AREA)
+            s_width, s_height = self.GetSize()
+            i_height, i_width, _ = self._originalImage.shape
+        
+            aspect_ratio = i_width / i_height
+            
+            if s_width / s_height > aspect_ratio:
+                new_height = s_height
+                new_width = int(s_height * aspect_ratio)
+            else:
+                new_width = s_width
+                new_height = int(s_width / aspect_ratio)
+            
+            self._image = cv2.resize(self._originalImage, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            
             height, width, _ = self._image.shape
             self._imageBitmap = wx.Bitmap.FromBuffer(width, height, self._image)
             self.Refresh()
     def LoadImage(self, path):
         self._imagePath = path
-        self.loadPointsFromJSON()
+        self.loadPointsFromLabel()
         self._originalImage=cv2.imread(path)
         self._originalImage=cv2.cvtColor(self._originalImage,cv2.COLOR_BGR2RGB)
         if self._originalImage is None:
@@ -81,8 +106,8 @@ class ImagePanel(wx.Panel):
                 'points':point.getPoints()
             })
         return pointsInJSON
-    def loadPointsFromJSON(self):
-        self._points=PointsHandling()
+    def loadPointsFromLabel(self):
+        self._points=AllPointsHandler()
         filename=os.path.splitext(self._imagePath)[0]+'.txt'
         allPoints=[]
         if not os.path.isfile(filename):
@@ -98,19 +123,16 @@ class ImagePanel(wx.Panel):
                 y1=y-height/2
                 x2=x+width/2
                 y2=y+height/2
-                allPoints.append({
-                    'className':int(className),
-                    'points':[(x1,y1),(x2,y2)]
-                })
+                allPoints.append([className,x1,y1,x2,y2])
             infile.close()
-        self._points.JSONToPoints(allPoints)
+        self._points.LabelsToPoints(allPoints)
     def loadModel(self,path):
-        self._model=YOLOv8(path,0.4)
+        self._model=YOLOv8(path)
     def detectPointsWithModel(self):
         if self._model is None:
             return False
         boxes, scores, class_ids=self._model.detect_objects(self._originalImage)
-        self._points=PointsHandling()
+        self._points=AllPointsHandler()
         for box, score, class_id in zip(boxes, scores, class_ids):
             x1,y1,x2,y2=box
             self._points.addPoint(self._originalImage.shape,(x1,y1))
@@ -145,9 +167,51 @@ class ImagePanel(wx.Panel):
 
         event.Skip()
 
+
+class AllPointsHandler():
+    def __init__(self):
+        self.allPoints=[]
+        self._point=Label()
+        self._indexOfPoint=0
+    #dodaje point u listu svih pointova
+    def addPoint(self,imgSize,point,className=0):
+        self._point.addPoint(point,imgSize,classId=className)
+        if self._point._lastPoint==False:
+            self.allPoints.append(self._point)
+            self._indexOfPoint=len(self.allPoints)-1
+        else:
+            self.allPoints[self._indexOfPoint]=self._point
+            self._point=Label()
+    #nacrtaj sve pointove kao pravokutnike
+    def drawRectangles(self,image):
+        for point in self.allPoints:
+            point.drawRectangle(image)
+    def deleteRectangle(self,point,imgSize):
+        X,Y=point
+        X=X/imgSize[1]
+        Y=Y/imgSize[0]
+
+        for points in self.allPoints:
+            x1,y1=points.getPoints()[0]
+            x2,y2=points.getPoints()[1]
+            if x1<=X<=x2 and y1<=Y<=y2:
+                self.allPoints.remove(points)
+                return True
+        return False
+
+    def getAllPoints(self):
+        return self.allPoints
+    def LabelsToPoints(self,allPoints):
+        for point in allPoints:
+            self._point=Label()
+            self._point.addPoint((point[1],point[2]),classId=point[0])
+            self._point.addPoint((point[3],point[4]),classId=point[0])
+            self.allPoints.append(self._point)
+        self._point=Label()
+
 #prihvaca 2 tocke za pravokutnik koje su gornja lijeva i donja desna tocka
 #sprema ih kao postotak širine i visine slike
-class pointsForClass():
+class Label():
     _colorsForClasses=[
             (73,200,12),
             (200,35,100),
@@ -222,44 +286,3 @@ class pointsForClass():
 
         self._points[0] = new_p1
         self._points[1] = new_p2
-
-class PointsHandling():
-    def __init__(self):
-        self.allPoints=[]
-        self._point=pointsForClass()
-        self._indexOfPoint=0
-    #dodaje point u listu svih pointova
-    def addPoint(self,imgSize,point,className=0):
-        self._point.addPoint(point,imgSize,classId=className)
-        if self._point._lastPoint==False:
-            self.allPoints.append(self._point)
-            self._indexOfPoint=len(self.allPoints)-1
-        else:
-            self.allPoints[self._indexOfPoint]=self._point
-            self._point=pointsForClass()
-    #nacrtaj sve pointove kao pravokutnike
-    def drawRectangles(self,image):
-        for point in self.allPoints:
-            point.drawRectangle(image)
-    def deleteRectangle(self,point,imgSize):
-        X,Y=point
-        X=X/imgSize[1]
-        Y=Y/imgSize[0]
-
-        for points in self.allPoints:
-            x1,y1=points.getPoints()[0]
-            x2,y2=points.getPoints()[1]
-            if x1<=X<=x2 and y1<=Y<=y2:
-                self.allPoints.remove(points)
-                return True
-        return False
-
-    def getAllPoints(self):
-        return self.allPoints
-    def JSONToPoints(self,allPoints):
-        for point in allPoints:
-            self._point=pointsForClass(point['className'])
-            self._point.addPoint(point['points'][0],classId=point['className'])
-            self._point.addPoint(point['points'][1],classId=point['className'])
-            self.allPoints.append(self._point)
-        self._point=pointsForClass()

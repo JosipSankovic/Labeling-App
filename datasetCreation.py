@@ -16,7 +16,7 @@ class DatasetCreator:
         self._currentImage = 0
 
     # create dataset with 70/20/10 split that puts images in train/val/test folders
-    def createDataset(self,imgSize=None):
+    def createDataset(self,imgSize=None,mozaicMix=0):
         #create folders
         datasetFolder=os.path.join(self._path, "dataset")
         trainPath = os.path.join(datasetFolder, "train")
@@ -39,44 +39,43 @@ class DatasetCreator:
         testCount = len(self._images)-trainCount-valCount
         #move images to folders
         for i in range(trainCount):
-            self._checkAndCopyLabelAndImg(i,trainPath,imgSize=imgSize)
+            self._checkAndCopyLabelAndImg(i,trainPath,imgSize=imgSize,mozaicMix=mozaicMix)
         for i in range(trainCount, trainCount+valCount):
-            self._checkAndCopyLabelAndImg(i,valPath,imgSize=imgSize)
+            self._checkAndCopyLabelAndImg(i,valPath,imgSize=imgSize,mozaicMix=mozaicMix)
         for i in range(trainCount+valCount, trainCount+valCount+testCount):
-            self._checkAndCopyLabelAndImg(i,testPath,imgSize=imgSize)
+            self._checkAndCopyLabelAndImg(i,testPath,imgSize=imgSize,mozaicMix=mozaicMix)
 
-    def _checkAndCopyLabelAndImg(self,i,path,imgSize=None):
-            #check if there is a label file
-            filename=os.path.splitext(self._images[i])[0]+'.txt'
-            if not os.path.exists(os.path.join(self._path, filename)):
-                return
-            
+    def _checkAndCopyLabelAndImg(self,i,path,imgSize=None,mozaicMix=0):            
             if(not os.path.exists(os.path.join(path,"images"))):
                 os.mkdir(os.path.join(path,"images"))
             if(not os.path.exists(os.path.join(path,"labels"))):
                 os.mkdir(os.path.join(path,"labels"))
-
+            #check if there is a label file
+            filename=os.path.splitext(self._images[i])[0]+'.txt'
+            if not os.path.exists(os.path.join(self._path, filename)):
+                return
+            img=cv2.imread(os.path.join(self._path, self._images[i]))
             if(imgSize!=None):
-                img=cv2.imread(os.path.join(self._path, self._images[i]))
                 img=cv2.resize(img, imgSize)
-                #make mozaic on image
-                img,addedLabels=self.mozaicMix(img)
+            #save image
+            cv2.imwrite(os.path.join(path,"images", self._images[i]),img)
+            #copy label
+            shutil.copyfile(os.path.join(self._path, filename), os.path.join(path,"labels", filename))
+            #make mozaic on image
+            if(mozaicMix>0):
+                img,addedLabels=self.mozaicMix(img,mozaicMix)
                 #save image
-                cv2.imwrite(os.path.join(path,"images", self._images[i]),img)
+                cv2.imwrite(os.path.join(path,"images", self._images[i]+"_mix.jpg"),img)
                 #copy label
-                shutil.copyfile(os.path.join(self._path, filename), os.path.join(path,"labels", filename))
+                filenameMix=os.path.splitext(self._images[i])[0]+'.jpg_mix.txt'
+                shutil.copyfile(os.path.join(self._path, filename), os.path.join(path,"labels", filenameMix))
                 #add addedLabels to label file
-                with open(os.path.join(path,"labels", filename), 'a') as outfile:
+                with open(os.path.join(path,"labels", filenameMix), 'a') as outfile:
                     for addedLabel in addedLabels:
                         x,y,width,height=addedLabel['points']
                         outfile.write(str(addedLabel["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
                 outfile.close()
-            else:
-                #copy image
-                shutil.copyfile(os.path.join(self._path, self._images[i]), os.path.join(path,"images", self._images[i]))
-                #copy label
-                shutil.copyfile(os.path.join(self._path, filename), os.path.join(path,"labels", filename))
-
+            
     def mozaicMix(self,image,numberOfPoints=2):
         #take random image with labels
         import random

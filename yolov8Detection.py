@@ -5,7 +5,7 @@ from utils import *
 
 class YOLOv8:
 
-    def __init__(self, path, conf_thres=0.6, iou_thres=0.5):
+    def __init__(self, path, conf_thres=0.5, iou_thres=0.1):
         self.conf_threshold = conf_thres
         self.iou_threshold = iou_thres
         # Initialize model
@@ -64,13 +64,13 @@ class YOLOv8:
 
         # Get the class with the highest confidence
         class_ids = np.argmax(predictions[:, 4:], axis=1)
-
         # Get bounding boxes for each object
         boxes = self.extract_boxes(predictions)
 
         # Apply non-maxima suppression to suppress weak, overlapping bounding boxes
         # indices = nms(boxes, scores, self.iou_threshold)
         indices = multiclass_nms(boxes, scores, class_ids, self.iou_threshold)
+        class_ids = np.array([2 if id != 0 else 0 for id in class_ids])
 
         return boxes[indices], scores[indices], class_ids[indices]
 

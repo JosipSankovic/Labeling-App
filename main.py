@@ -17,11 +17,24 @@ class MainFrame(wx.Frame):
         self._detectObject=wx.Button(self._controlPanel, label='Detect Objects')    
         self._checkOnlyNotDetected=wx.CheckBox(self._controlPanel, label='Only not detected')
         self._createDataset=wx.Button(self._controlPanel, label='Create Dataset')
-        # Image Label
-        self._imageLabel=wx.StaticText(self._controlPanel, label='Image Label')
-        self._imageLabel.SetForegroundColour('white')
-        self._imageLabel.SetBackgroundColour('black')
-        self._imageLabel.SetFont(wx.Font(18, wx.DECORATIVE, wx.NORMAL, wx.NORMAL))
+       
+        #style
+        self.SetBackgroundColour('#2E2E2E')
+        self._mainPanel.SetBackgroundColour('#2E2E2E')
+        self._controlPanel.SetBackgroundColour('#2E2E2E')
+        self._loadDirectory.SetBackgroundColour('#008080')
+        self._loadDirectory.SetForegroundColour('#FFFFFF')
+        self._nextImage.SetBackgroundColour('#00BFFF')
+        self._nextImage.SetForegroundColour('#FFFFFF')
+        self._prevImage.SetBackgroundColour('#FFA500')
+        self._prevImage.SetForegroundColour('#FFFFFF')
+        self._detectObject.SetBackgroundColour('#008080')
+        self._detectObject.SetForegroundColour('#FFFFFF')
+        self._checkOnlyNotDetected.SetForegroundColour('#FFFFFF')
+        self._checkOnlyNotDetected.SetBackgroundColour('#2E2E2E')
+        self._createDataset.SetBackgroundColour('#D3D3D3')
+        self._createDataset.SetForegroundColour('#000000')
+
         #mainSizer
         self._mainSizer=wx.BoxSizer(wx.HORIZONTAL)
         self._mainSizer.Add(self._imagePanel, 8, wx.EXPAND)
@@ -29,13 +42,12 @@ class MainFrame(wx.Frame):
         self._mainPanel.SetSizerAndFit(self._mainSizer)
         #controlSizer
         self._controlSizer=wx.BoxSizer(wx.VERTICAL)
-        self._controlSizer.Add(self._loadDirectory, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._nextImage, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._prevImage, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._detectObject, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._checkOnlyNotDetected, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._imageLabel, 0, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._createDataset, 0, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._loadDirectory, 2, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._nextImage, 3, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._prevImage, 3, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._detectObject, 1, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._checkOnlyNotDetected, 1, wx.EXPAND|wx.TOP, 10)
+        self._controlSizer.Add(self._createDataset, 1, wx.EXPAND|wx.BOTTOM, 300)
         self._controlPanel.SetSizerAndFit(self._controlSizer)
 
         # Bind events
@@ -108,7 +120,7 @@ class MainFrame(wx.Frame):
         event.Skip()
     def _LoadImage(self):
         self._imagePanel.LoadImage(os.path.join(self._selectedDirectory, self._images[self._currentImage]))
-        self._imageLabel.SetLabel(self._images[self._currentImage]) 
+        self.SetTitle(self._images[self._currentImage]) 
     def detectObjects(self, event):
         if self._modelPath!="":
             self._imagePanel.detectPointsWithModel()
@@ -127,15 +139,14 @@ class MainFrame(wx.Frame):
             return
         dataset=dc.DatasetCreator()
         dataset.loadDirectory(self._selectedDirectory)
-        dataset.createDataset((640,640))
+        dataset.createDataset((640,640),0)
 
         event.Skip()
     # Load images from selected directory
     def _LoadImages(self):
         self._images = []
-        for filename in os.listdir(self._selectedDirectory+"/"):
-            if filename.endswith(('.jpg','.png','.jpeg')):
-                self._images.append(filename)
+        all_files=os.listdir(self._selectedDirectory)
+        self._images=[imgPath for imgPath in all_files if os.path.splitext(imgPath)[1] in [".jpg",".png",".jpeg"] ]
         if len(self._images) > 0:
             #sort images by name so they are in order slika1,slika2...
             self._images = self.sort_strings(self._images)
