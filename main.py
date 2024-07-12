@@ -18,6 +18,10 @@ class MainFrame(wx.Frame):
         self._detectObject=wx.Button(self._controlPanel, label='Detect Objects')    
         self._checkOnlyNotDetected=wx.CheckBox(self._controlPanel, label='Only not detected')
         self._createDataset=wx.Button(self._controlPanel, label='Create Dataset')
+        self._listctrlImg=wx.ListCtrl(self._mainPanel,style=wx.LC_REPORT)
+        self._listctrlClasses=wx.ListCtrl(self._mainPanel,style=wx.LC_REPORT)
+        self._listctrlImg.InsertColumn(0,"Images")
+        self._listctrlClasses.InsertColumn(0,"Classes")
        
         #style
         self.SetBackgroundColour('#2E2E2E')
@@ -38,6 +42,8 @@ class MainFrame(wx.Frame):
 
         #mainSizer
         self._mainSizer=wx.BoxSizer(wx.HORIZONTAL)
+        self._mainSizer.Add(self._listctrlImg,2,wx.EXPAND)
+        self._mainSizer.Add(self._listctrlClasses,2,wx.EXPAND)
         self._mainSizer.Add(self._imagePanel, 8, wx.EXPAND)
         self._mainSizer.Add(self._controlPanel)
         self._mainPanel.SetSizerAndFit(self._mainSizer)
@@ -57,6 +63,8 @@ class MainFrame(wx.Frame):
         self._prevImage.Bind(wx.EVT_BUTTON, self._OnPrevImage)
         self._detectObject.Bind(wx.EVT_BUTTON, self.detectObjects)
         self._createDataset.Bind(wx.EVT_BUTTON, self._OnCreateDataset)
+        self._listctrlClasses.Bind(wx.EVT_LIST_ITEM_SELECTED,self._On_Classname_selected)
+        self._listctrlImg.Bind(wx.EVT_LIST_ITEM_SELECTED,self._On_Img_selected)
         #initialize variables
         self._selectedDirectory = None
         self._images = []
@@ -70,7 +78,7 @@ class MainFrame(wx.Frame):
         dlg=wx.DirDialog(self, "Choose a directory:", style=wx.DD_DEFAULT_STYLE,defaultPath=last_path)
         
         if dlg.ShowModal() == wx.ID_OK:
-            self._selectedDirectory = dlg.GetPath()
+            self._selectedDirectory = os.path.normpath(dlg.GetPath())
             self.config.Write("LastPathDir", self._selectedDirectory)
             self._LoadImages()
         dlg.Destroy()
@@ -147,14 +155,30 @@ class MainFrame(wx.Frame):
         dataset.createDataset((640,640),0)
 
         event.Skip()
+    def _On_Classname_selected(self,event):
+        obj=event.GetEventObject()
+        index=obj.GetFocusedItem()
+        self._imagePanel.setClassname(index)
+    def _On_Img_selected(self,event):
+        self._SaveFile()
+        obj=event.GetEventObject()
+        index=obj.GetFocusedItem()
+        self._currentImage=index
+        self._LoadImage()
     # Load images from selected directory
     def _LoadImages(self):
         self._images = []
         all_files=os.listdir(self._selectedDirectory)
-        self._images=[imgPath for imgPath in all_files if imgPath.lower().endswith((".jpg",".png",".jpeg")) ]
+        self._images=[os.path.normpath(imgPath) for imgPath in all_files if imgPath.lower().endswith((".jpg",".png",".jpeg")) ]
+        self._listctrlClasses.DeleteAllItems()
+        self._listctrlImg.DeleteAllItems()
+        self.LoadLabelsTXT()
         if len(self._images) > 0:
             #sort images by name so they are in order slika1,slika2...
             self._images = self.sort_strings(self._images)
+
+            for img in reversed(self._images):
+                self._listctrlImg.InsertItem(0,img)
         self._currentImage = 0
         self._LoadImage()
     def sort_strings(self,strings):
@@ -164,7 +188,7 @@ class MainFrame(wx.Frame):
             if match:
                 items = match.groups()
                 return (items[0], int(items[1]))
-            return s
+            return (s,0)
 
         return sorted(strings, key=key_func)
     def _SaveFile(self):
@@ -187,6 +211,14 @@ class MainFrame(wx.Frame):
                 outfile.write(str(className["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
             outfile.close()
             return True
+    def LoadLabelsTXT(self):
+        if(os.path.exists(os.path.join(self._selectedDirectory,"labels.txt"))):
+            lines=[]
+            with open(os.path.join(self._selectedDirectory,"labels.txt")) as file:
+                for line in file:
+                    lines.append(line.split("\n")[0])
+            for line in reversed(lines):
+                self._listctrlClasses.InsertItem(0,line)
 if __name__ == '__main__':
     app=wx.App(False)
     GUI=MainFrame(None, title='Labeling App')

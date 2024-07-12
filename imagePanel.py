@@ -2,6 +2,7 @@ import wx
 import cv2
 import os
 from yolov8Detection import YOLOv8
+import numpy as np
 class ImagePanel(wx.Panel):
    
     def __init__(self, parent,frameSize,position=wx.DefaultPosition):
@@ -14,6 +15,7 @@ class ImagePanel(wx.Panel):
         self._imageLabelSize = None
         self._points=None
         self._classNumber=0
+        self._className="0"
         self.SetDoubleBuffered(True)
         # self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetBackgroundColour("#2E2E2E")
@@ -85,7 +87,16 @@ class ImagePanel(wx.Panel):
     def LoadImage(self, path):
         self._imagePath = path
         self.loadPointsFromLabel()
-        self._originalImage=cv2.imread(path)
+        
+        # Read the image file as a binary stream
+        with open(self._imagePath, 'rb') as f:
+            image_bytes = f.read()
+            
+            # Convert the binary stream to a numpy array
+            image_array = np.frombuffer(image_bytes, np.uint8)
+            
+            # Decode the image array
+            self._originalImage = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
         self._originalImage=cv2.cvtColor(self._originalImage,cv2.COLOR_BGR2RGB)
         if self._originalImage is None:
             return False
@@ -156,7 +167,8 @@ class ImagePanel(wx.Panel):
             self._points.addPoint(self._originalImage.shape,(x1,y1))
             self._points.addPoint(self._originalImage.shape,(x2,y2),class_id)
         self.showFrame()
-
+    def setClassname(self,classId):
+        self._classNumber=classId
     def on_key_down(self,event):
         keyPressed=event.GetKeyCode()
         if(keyPressed==wx.WXK_NUMPAD0):
@@ -227,19 +239,28 @@ class AllPointsHandler():
 #prihvaca 2 tocke za pravokutnik koje su gornja lijeva i donja desna tocka
 #sprema ih kao postotak širine i visine slike
 class Label():
-    _colorsForClasses=[
-            (73,200,12),
-            (200,35,100),
-            (12,78,200),
-            (0,218,100),
-            (23,100,250),
-            (200,43,12),
-            (100,10,140),
-            (0,100,0),
-            (230,40,122),
-            (100,12,100),
-
-        ]
+    _colorsForClasses = [
+    (31, 119, 180),   # Blue
+    (255, 127, 14),   # Orange
+    (44, 160, 44),    # Green
+    (214, 39, 40),    # Red
+    (148, 103, 189),  # Purple
+    (140, 86, 75),    # Brown
+    (227, 119, 194),  # Pink
+    (127, 127, 127),  # Gray
+    (188, 189, 34),   # Olive
+    (23, 190, 207),   # Cyan
+    (255, 187, 120),  # Light Orange
+    (199, 199, 199),  # Light Gray
+    (158, 218, 229),  # Light Cyan
+    (197, 176, 213),  # Light Purple
+    (140, 140, 140),  # Dark Gray
+    (196, 156, 148),  # Light Brown
+    (227, 119, 180),  # Light Pink
+    (174, 199, 232),  # Light Blue
+    (152, 223, 138),  # Light Green
+    (246, 207, 113)   # Light Yellow
+]
 
     def __init__(self,className=0):
         self._className=className
@@ -281,11 +302,11 @@ class Label():
         if self._points[0] is not None and self._points[1] is not None:
             p1=self.percentToPoints(image.shape,(self._points[0][0],self._points[0][1]))
             p2=self.percentToPoints(image.shape,(self._points[1][0],self._points[1][1]))
-            cv2.rectangle(image,p1,p2,self._colorsForClasses[self._className],2)
+            cv2.rectangle(image,p1,p2,self._colorsForClasses[self._className%20],2)
         #ako je postavljen samo prvi point
         elif(self._points[0] is not None):
             p1=self.percentToPoints(image.shape,(self._points[0][0],self._points[0][1]))
-            cv2.circle(image,p1,3,self._colorsForClasses[self._className],-1)
+            cv2.circle(image,p1,3,self._colorsForClasses[self._className%20],-1)
     # ako je drugi point manji od prvog zamijeni ih da se moze nacrtati pravokutnik
     def _rearrange_points(self,):
         x1, y1 = self._points[0]
