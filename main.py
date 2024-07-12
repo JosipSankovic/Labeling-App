@@ -177,8 +177,8 @@ class MainFrame(wx.Frame):
             #sort images by name so they are in order slika1,slika2...
             self._images = self.sort_strings(self._images)
 
-            for img in reversed(self._images):
-                self._listctrlImg.InsertItem(0,img)
+            for i,img in enumerate(self._images):
+                index=self._listctrlImg.InsertItem(i,img)
         self._currentImage = 0
         self._LoadImage()
     def sort_strings(self,strings):
@@ -217,8 +217,10 @@ class MainFrame(wx.Frame):
             with open(os.path.join(self._selectedDirectory,"labels.txt")) as file:
                 for line in file:
                     lines.append(line.split("\n")[0])
-            for line in reversed(lines):
-                self._listctrlClasses.InsertItem(0,line)
+            for i,line in enumerate(lines):
+                index=self._listctrlClasses.InsertItem(i,line)
+                self._listctrlClasses.SetItemBackgroundColour(index,wx.Colour(ip.Label._colorsForClasses[index]))
+                
 if __name__ == '__main__':
     app=wx.App(False)
     GUI=MainFrame(None, title='Labeling App')
