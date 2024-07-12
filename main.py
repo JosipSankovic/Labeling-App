@@ -151,7 +151,7 @@ class MainFrame(wx.Frame):
     def _LoadImages(self):
         self._images = []
         all_files=os.listdir(self._selectedDirectory)
-        self._images=[imgPath for imgPath in all_files if os.path.splitext(imgPath)[1] in [".jpg",".png",".jpeg"] ]
+        self._images=[imgPath for imgPath in all_files if imgPath.lower().endswith((".jpg",".png",".jpeg")) ]
         if len(self._images) > 0:
             #sort images by name so they are in order slika1,slika2...
             self._images = self.sort_strings(self._images)

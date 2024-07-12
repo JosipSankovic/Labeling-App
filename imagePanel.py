@@ -14,6 +14,7 @@ class ImagePanel(wx.Panel):
         self._imageLabelSize = None
         self._points=None
         self._classNumber=0
+        self.SetDoubleBuffered(True)
         # self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
         self.SetBackgroundColour("#2E2E2E")
         self.Bind(wx.EVT_PAINT, self.on_paint)
@@ -23,7 +24,7 @@ class ImagePanel(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN,self.on_key_down)
     def on_paint(self, event):
         if self._imageBitmap is not None:
-            dc = wx.PaintDC(self)
+            dc = wx.BufferedPaintDC(self)
             s_width, s_height = self.GetSize()
             b_width, b_height = self._imageBitmap.GetSize()
             
