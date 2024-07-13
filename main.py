@@ -10,7 +10,7 @@ class MainFrame(wx.Frame):
         # Panels
         self._mainPanel = wx.Panel(self)
         self._controlPanel = wx.Panel(self._mainPanel)
-        self._imagePanel = ip.ImagePanel(self._mainPanel,(self.GetSize().GetWidth(),self.GetSize().GetHeight()))
+        self._imagePanel = ip.ImagePanel(self._mainPanel)
         # Buttons
         self._loadDirectory=wx.Button(self._controlPanel, label='Load Directory')
         self._nextImage=wx.Button(self._controlPanel, label='Next Image')
@@ -42,10 +42,10 @@ class MainFrame(wx.Frame):
 
         #mainSizer
         self._mainSizer=wx.BoxSizer(wx.HORIZONTAL)
-        self._mainSizer.Add(self._listctrlImg,2,wx.EXPAND)
-        self._mainSizer.Add(self._listctrlClasses,2,wx.EXPAND)
-        self._mainSizer.Add(self._imagePanel, 8, wx.EXPAND)
-        self._mainSizer.Add(self._controlPanel)
+        self._mainSizer.Add(self._listctrlImg,10,wx.EXPAND)
+        self._mainSizer.Add(self._listctrlClasses,5,wx.EXPAND)
+        self._mainSizer.Add(self._imagePanel, 100, wx.EXPAND)
+        self._mainSizer.Add(self._controlPanel,3,wx.EXPAND|wx.BOTTOM,50)
         self._mainPanel.SetSizerAndFit(self._mainSizer)
         #controlSizer
         self._controlSizer=wx.BoxSizer(wx.VERTICAL)
@@ -54,7 +54,7 @@ class MainFrame(wx.Frame):
         self._controlSizer.Add(self._prevImage, 3, wx.EXPAND|wx.TOP, 10)
         self._controlSizer.Add(self._detectObject, 1, wx.EXPAND|wx.TOP, 10)
         self._controlSizer.Add(self._checkOnlyNotDetected, 1, wx.EXPAND|wx.TOP, 10)
-        self._controlSizer.Add(self._createDataset, 1, wx.EXPAND|wx.BOTTOM, 300)
+        self._controlSizer.Add(self._createDataset, 2, wx.EXPAND|wx.TOP,10)
         self._controlPanel.SetSizerAndFit(self._controlSizer)
 
         # Bind events
@@ -109,6 +109,7 @@ class MainFrame(wx.Frame):
     def _OnPrevImage(self, event):
         self._SaveFile()
         prevIndex=self._currentImage
+
         #go through images until one doesnt has a label file
         if(self._checkOnlyNotDetected.IsChecked()):
                 
@@ -118,14 +119,10 @@ class MainFrame(wx.Frame):
                     if not os.path.exists(os.path.join(self._selectedDirectory, filename)):
                         self._LoadImage()
                         event.Skip()
-                        return
+                        break
                 self._currentImage=prevIndex
                 self._LoadImage()
-                event.Skip()
-                return
-                
-                
-        if self._currentImage > 0:
+        elif self._currentImage > 0:
             self._currentImage -= 1
             self._LoadImage()
         event.Skip()
@@ -179,6 +176,9 @@ class MainFrame(wx.Frame):
 
             for i,img in enumerate(self._images):
                 index=self._listctrlImg.InsertItem(i,img)
+                if os.path.splitext(img)[0]+".txt" in all_files:
+                    self._listctrlImg.SetItemBackgroundColour(index,wx.Colour("#547ab8"))
+                    
         self._currentImage = 0
         self._LoadImage()
     def sort_strings(self,strings):
@@ -200,6 +200,7 @@ class MainFrame(wx.Frame):
             if(len(allClasses)==0):
                 outfile.close()
                 os.remove(os.path.join(self._selectedDirectory, filename))
+                self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour(255,255,255))
                 return False
             for className in allClasses:
                 x1,y1=className['points'][0]
@@ -209,6 +210,8 @@ class MainFrame(wx.Frame):
                 width=abs(x1-x2)
                 height=abs(y1-y2)
                 outfile.write(str(className["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
+                self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour("#547ab8"))
+
             outfile.close()
             return True
     def LoadLabelsTXT(self):
@@ -219,7 +222,7 @@ class MainFrame(wx.Frame):
                     lines.append(line.split("\n")[0])
             for i,line in enumerate(lines):
                 index=self._listctrlClasses.InsertItem(i,line)
-                self._listctrlClasses.SetItemBackgroundColour(index,wx.Colour(ip.Label._colorsForClasses[index]))
+                self._listctrlClasses.SetItemBackgroundColour(index,wx.Colour(ip.Label._colorsForClasses[index%len(ip.Label._colorsForClasses)]))
                 
 if __name__ == '__main__':
     app=wx.App(False)

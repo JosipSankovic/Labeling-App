@@ -5,7 +5,7 @@ from yolov8Detection import YOLOv8
 import numpy as np
 class ImagePanel(wx.Panel):
    
-    def __init__(self, parent,frameSize,position=wx.DefaultPosition):
+    def __init__(self, parent,frameSize=wx.DefaultSize,position=wx.DefaultPosition):
         super(ImagePanel, self).__init__(parent,size=frameSize,pos=position)
         self._imagePath = None
         self._originalImage=None
