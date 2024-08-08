@@ -61,7 +61,7 @@ class MainFrame(wx.Frame):
         self._loadDirectory.Bind(wx.EVT_BUTTON, self._OnLoadDirectory)
         self._nextImage.Bind(wx.EVT_BUTTON, self._OnNextImage)
         self._prevImage.Bind(wx.EVT_BUTTON, self._OnPrevImage)
-        self._detectObject.Bind(wx.EVT_BUTTON, self.detectObjects)
+        self._detectObject.Bind(wx.EVT_BUTTON, self._DetectObjects)
         self._createDataset.Bind(wx.EVT_BUTTON, self._OnCreateDataset)
         self._listctrlClasses.Bind(wx.EVT_LIST_ITEM_SELECTED,self._On_Classname_selected)
         self._listctrlImg.Bind(wx.EVT_LIST_ITEM_SELECTED,self._On_Img_selected)
@@ -69,7 +69,7 @@ class MainFrame(wx.Frame):
         self._selectedDirectory = None
         self._images = []
         self._currentImage = 0
-        self._modelPath=""
+        self._modelPath=None
         self.Show(True)
     
     def _OnLoadDirectory(self, event):
@@ -129,18 +129,15 @@ class MainFrame(wx.Frame):
     def _LoadImage(self):
         self._imagePanel.LoadImage(os.path.join(self._selectedDirectory, self._images[self._currentImage]))
         self.SetTitle(self._images[self._currentImage]) 
-    def detectObjects(self, event):
-        if self._modelPath!="":
-            self._imagePanel.detectPointsWithModel()
-            event.Skip()
-            return
-        last_path = self.config.Read("LastPathModel", "")
-        dlg=wx.FileDialog(self, "Choose a model:", style=wx.DD_DEFAULT_STYLE,defaultDir=os.path.dirname(last_path))
-        if dlg.ShowModal() == wx.ID_OK:
-            self._modelPath = dlg.GetPath()
-            self.config.Write("LastPathModel", self._modelPath)
-        dlg.Destroy()
-        self._imagePanel.loadModel(self._modelPath)
+    def _DetectObjects(self, event):
+        if self._modelPath is None:
+            last_path = self.config.Read("LastPathModel", "")
+            dlg=wx.FileDialog(self, "Choose a model:", style=wx.DD_DEFAULT_STYLE,defaultDir=os.path.dirname(last_path))
+            if dlg.ShowModal() == wx.ID_OK:
+                self._modelPath = dlg.GetPath()
+                self.config.Write("LastPathModel", self._modelPath)
+                self._imagePanel.loadModel(self._modelPath)
+            dlg.Destroy()
         self._imagePanel.detectPointsWithModel()
         event.Skip()
     def _OnCreateDataset(self, event):
@@ -148,8 +145,8 @@ class MainFrame(wx.Frame):
             event.Skip()
             return
         dataset=dc.DatasetCreator()
-        dataset.loadDirectory(self._selectedDirectory)
-        dataset.createDataset((640,640),0)
+        dataset.loadDataset(self._selectedDirectory)
+        dataset.createDataset(imgSize=(640,640),mozaicMix=10,split=(0.80,0.15,0.5),noisePercent=0.02,flip_horizontaly=True)
 
         event.Skip()
     def _On_Classname_selected(self,event):
@@ -193,27 +190,28 @@ class MainFrame(wx.Frame):
         return sorted(strings, key=key_func)
     def _SaveFile(self):
         #className:class:int, points:[point1,point2]
-        allClasses=self._imagePanel.getAllClassesAsJSON()
         
+        allLabels=self._imagePanel.getLabels()
         filename=os.path.splitext(self._images[self._currentImage])[0]+'.txt'
-        with open(os.path.join(self._selectedDirectory, filename), 'w') as outfile:
-            if(len(allClasses)==0):
-                outfile.close()
-                os.remove(os.path.join(self._selectedDirectory, filename))
-                self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour(255,255,255))
-                return False
-            for className in allClasses:
-                x1,y1=className['points'][0]
-                x2,y2=className['points'][1]
-                x=(x1+x2)/2
-                y=(y1+y2)/2
-                width=abs(x1-x2)
-                height=abs(y1-y2)
-                outfile.write(str(className["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
-                self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour("#547ab8"))
-
+        filepath=os.path.join(self._selectedDirectory, filename)
+        if not allLabels:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour(255,255,255))
+        else:
+            with open(filepath, 'w') as outfile:
+                for className in allLabels:
+                    if className['points'][0] and className['points'][1] is None:
+                        continue
+                    x1,y1=className['points'][0]
+                    x2,y2=className['points'][1]
+                    x=(x1+x2)/2
+                    y=(y1+y2)/2
+                    width=abs(x1-x2)
+                    height=abs(y1-y2)
+                    outfile.write(str(className["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
+                    self._listctrlImg.SetItemBackgroundColour(self._currentImage,wx.Colour("#547ab8"))
             outfile.close()
-            return True
     def LoadLabelsTXT(self):
         if(os.path.exists(os.path.join(self._selectedDirectory,"labels.txt"))):
             lines=[]
@@ -222,7 +220,7 @@ class MainFrame(wx.Frame):
                     lines.append(line.split("\n")[0])
             for i,line in enumerate(lines):
                 index=self._listctrlClasses.InsertItem(i,line)
-                self._listctrlClasses.SetItemBackgroundColour(index,wx.Colour(ip.Label._colorsForClasses[index%len(ip.Label._colorsForClasses)]))
+                self._listctrlClasses.SetItemBackgroundColour(index,wx.Colour(ip.Label.getColorForClasses(index=index)))
                 
 if __name__ == '__main__':
     app=wx.App(False)
