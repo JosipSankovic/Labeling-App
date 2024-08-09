@@ -5,7 +5,7 @@ from utils import *
 
 class YOLOv8:
 
-    def __init__(self, path, conf_thres=0.5, iou_thres=0.45):
+    def __init__(self, path, conf_thres=0.25, iou_thres=0.45):
         self.conf_threshold = conf_thres
         self.iou_threshold = iou_thres
         # Initialize model

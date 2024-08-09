@@ -60,6 +60,22 @@ class DatasetCreator:
                 image_hor,newL=self.__flipImageHorizontaly(image_path=img,label_path=label)
                 cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_flip.jpg"),image_hor)
                 self.__saveLabels(newL,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_flip.txt"))
+            contrast_img=None
+            if(random.randint(0,100)>55):
+                contrast_img=self.__brightness(image_path=img,brightness=-60,contrast=1)
+            else:
+                contrast_img=self.__brightness(image_path=img,brightness=60,contrast=1)
+            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_brightness.jpg"),contrast_img)
+            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_brightness.txt"))
+            
+            if(random.randint(0,100)>50):
+                contrast_img=self.__brightness(image_path=img,brightness=0,contrast=1.5)
+            else:
+                contrast_img=self.__brightness(image_path=img,brightness=0,contrast=0.7)
+            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_contrast.jpg"),contrast_img)
+            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_contrast.txt"))
+
+
 
         for data in val:
             img=data["img"]
@@ -181,6 +197,10 @@ class DatasetCreator:
             })
 
         return [image,new_labels]
+    def __brightness(self,image_path,brightness=60,contrast=1.5):
+        image=self.readImage(os.path.join(self.__path,image_path))
+        image=cv2.addWeighted(image,contrast,np.zeros(image.shape,image.dtype),0,brightness)
+        return image
     def loadLabels(self,label):
         filename=label
         if not os.path.exists(os.path.join(self.__path, filename)):
