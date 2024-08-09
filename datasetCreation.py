@@ -41,40 +41,40 @@ class DatasetCreator:
         val = self.__dataset[int(dat_size*split[0]):int(dat_size*(split[1]+split[0]))]
         test = self.__dataset[int(dat_size*(split[0]+split[1])):]
         for data in train:
+            new_img=None
+            yolo_labels=None
             img=data["img"]
             label=data["label"]
-            image=self.readImage(os.path.join(self.__path,img))
             
             if mozaicMix>0:
-                mozaic_img,mozaic_label=self.__mozaicMix(image_path=img,label_path=label,numberOfPoints=mozaicMix)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_mix.jpg"),mozaic_img)
-                self.__saveLabels(mozaic_label,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_mix.txt"))
-                
-            cv2.imwrite(os.path.join(trainPath,"images",img),image)
-            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels",label))
-            if noisePercent>0:
-                noise=self.__addNoise(img,percentOfNoise=noisePercent)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_noise.jpg"),noise)
-                shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_noise.txt"))
+                new_img,yolo_labels=self.__mozaicMix(image_path=img,label_path=label,numberOfPoints=mozaicMix)
+                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_mix.jpg"),new_img)
+                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_mix.txt")) 
+            if noisePercent>0 and noisePercent<1.0:
+                new_img,yolo_labels=self.__addNoise(image_path=img,label_path=label,percentOfNoise=noisePercent)
+                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_noise.jpg"),new_img)
+                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_noise.txt")) 
             if flip_horizontaly:
-                image_hor,newL=self.__flipImageHorizontaly(image_path=img,label_path=label)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_flip.jpg"),image_hor)
-                self.__saveLabels(newL,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_flip.txt"))
-            contrast_img=None
+                new_img,yolo_labels=self.__flipImageHorizontaly(image_path=img,label_path=label)
+                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_flip.jpg"),new_img)
+                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_flip.txt"))
             if(random.randint(0,100)>55):
-                contrast_img=self.__brightness(image_path=img,brightness=-60,contrast=1)
+                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=-60,contrast=1)
             else:
-                contrast_img=self.__brightness(image_path=img,brightness=60,contrast=1)
-            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_brightness.jpg"),contrast_img)
-            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_brightness.txt"))
+                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=60,contrast=1)
+            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_brightness.jpg"),new_img)
+            self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_brightness.txt"))
             
             if(random.randint(0,100)>50):
-                contrast_img=self.__brightness(image_path=img,brightness=0,contrast=1.5)
+                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=0,contrast=1.5)
             else:
-                contrast_img=self.__brightness(image_path=img,brightness=0,contrast=0.7)
-            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_contrast.jpg"),contrast_img)
-            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_contrast.txt"))
-
+                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=0,contrast=0.7)
+            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_contrast.jpg"),new_img)
+            self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_contrast.txt"))
+            
+            image=self.readImage(os.path.join(self.__path,img))
+            cv2.imwrite(os.path.join(trainPath,"images",img),image)
+            shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels",label))
 
 
         for data in val:
@@ -167,8 +167,20 @@ class DatasetCreator:
             })
             
         return [image,addedLabels]
-    def __addNoise(self,image_path,percentOfNoise=0.02):
+    def __addNoise(self,image_path,label_path=None,percentOfNoise=0.02):
         noisy_image=self.readImage(os.path.join(self.__path,image_path))
+        yoloLabels=None
+        if label_path is not None:
+            labels=self.loadLabels(os.path.join(self.__path,label_path))
+            yoloLabels=[]
+            for label in labels:
+                x1,y1=label['points'][0]
+                x2,y2=label['points'][1]
+                x,y,width,height=self.pointsToYolov8Format((x1,y1),(x2,y2))
+                yoloLabels.append({
+                    'className':label['className'],
+                    'points':[x,y,width,height]
+                })
         # Generate random coordinates for the dots
         num_dots=int(noisy_image.shape[0]*noisy_image.shape[1]*percentOfNoise)
         x_coords = np.random.randint(0, noisy_image.shape[1], num_dots//2)
@@ -179,7 +191,7 @@ class DatasetCreator:
         y_coords = np.random.randint(0, noisy_image.shape[0], num_dots//2)
         noisy_image[y_coords, x_coords] = [255, 255, 255]  # For RGB images
 
-        return noisy_image
+        return [noisy_image,yoloLabels]
     def __flipImageHorizontaly(self,image_path,label_path):
         image=self.readImage(os.path.join(self.__path,image_path))
         image=cv2.flip(image,1)
@@ -197,10 +209,22 @@ class DatasetCreator:
             })
 
         return [image,new_labels]
-    def __brightness(self,image_path,brightness=60,contrast=1.5):
+    def __brightness(self,image_path,label_path=None,brightness=60,contrast=1.5):
         image=self.readImage(os.path.join(self.__path,image_path))
+        labels=self.loadLabels(os.path.join(self.__path,label_path))
+        yoloLabels=None
+        if label_path is not None:
+            yoloLabels=[]
+            for label in labels:
+                x1,y1=label['points'][0]
+                x2,y2=label['points'][1]
+                x,y,width,height=self.pointsToYolov8Format((x1,y1),(x2,y2))
+                yoloLabels.append({
+                    'className':label['className'],
+                    'points':[x,y,width,height]
+                })
         image=cv2.addWeighted(image,contrast,np.zeros(image.shape,image.dtype),0,brightness)
-        return image
+        return [image,yoloLabels]
     def loadLabels(self,label):
         filename=label
         if not os.path.exists(os.path.join(self.__path, filename)):
