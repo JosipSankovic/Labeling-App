@@ -145,9 +145,9 @@ class MainFrame(wx.Frame):
             event.Skip()
             return
         dataset=dc.DatasetCreator()
-        dataset.loadDataset(self._selectedDirectory)
-        dataset.createDataset(imgSize=(640,640),mozaicMix=10,split=(0.80,0.15,0.5),noisePercent=0.02,flip_horizontaly=True)
-
+        size_of_dataset=dataset.loadDataset(self._selectedDirectory)
+        if size_of_dataset>10:
+            dataset.createDataset(imgSize=(640,640),mozaicMix=20,split=(0.80,0.15,0.5),noisePercent=0.02,flip_horizontaly=True)
         event.Skip()
     def _On_Classname_selected(self,event):
         obj=event.GetEventObject()

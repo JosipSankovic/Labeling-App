@@ -17,7 +17,9 @@ class DatasetCreator:
             if filename.endswith(('.jpg','.png','.jpeg')) and os.path.exists(os.path.join(path,os.path.splitext(filename)[0]+".txt")):
                 self.__dataset.append({"img":filename,"label":os.path.splitext(filename)[0]+".txt"})
 
-    def createDataset(self,imgSize=(-1,-1),mozaicMix=-1,split=(0.70,0.20,0.10),noisePercent=-1,flip_horizontaly=False):
+        return len(self.__dataset)
+
+    def createDataset(self,imgSize=(-1,-1),mozaicMix=-1,split=(0.70,0.20,0.10),noisePercent=-1,flip_horizontaly=False,brightness_percent=0.6,contrast=True):
         self.__imgSize=imgSize
         datasetFolder=os.path.join(self.__path, "dataset")
         trainPath = os.path.join(datasetFolder, "train")
@@ -41,42 +43,34 @@ class DatasetCreator:
         val = self.__dataset[int(dat_size*split[0]):int(dat_size*(split[1]+split[0]))]
         test = self.__dataset[int(dat_size*(split[0]+split[1])):]
         for data in train:
+            function_list=[]
             new_img=None
             yolo_labels=None
             img=data["img"]
             label=data["label"]
-            
             if mozaicMix>0:
-                new_img,yolo_labels=self.__mozaicMix(image_path=img,label_path=label,numberOfPoints=mozaicMix)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_mix.jpg"),new_img)
-                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_mix.txt")) 
+                function_list.append((self.__mozaicMix,"mix",img,label,mozaicMix))
             if noisePercent>0 and noisePercent<1.0:
-                new_img,yolo_labels=self.__addNoise(image_path=img,label_path=label,percentOfNoise=noisePercent)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_noise.jpg"),new_img)
-                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_noise.txt")) 
+                function_list.append((self.__addNoise,"noise",img,label,noisePercent))
             if flip_horizontaly:
-                new_img,yolo_labels=self.__flipImageHorizontaly(image_path=img,label_path=label)
-                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_flip.jpg"),new_img)
-                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_flip.txt"))
-            if(random.randint(0,100)>55):
-                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=-60,contrast=1)
-            else:
-                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=60,contrast=1)
-            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_brightness.jpg"),new_img)
-            self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_brightness.txt"))
-            
-            if(random.randint(0,100)>50):
-                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=0,contrast=1.5)
-            else:
-                new_img,yolo_labels=self.__brightness(image_path=img,label_path=label,brightness=0,contrast=0.7)
-            cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+"_contrast.jpg"),new_img)
-            self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+"_contrast.txt"))
-            
+                function_list.append((self.__flipImageHorizontaly,"flip",img,label))
+            if brightness_percent>0 and brightness_percent<1.0:
+                if(random.randint(0,100)>55):
+                    function_list.append((self.__brightness,"brightness",img,label,100*brightness_percent*(-1),1))
+                else:
+                    function_list.append((self.__brightness,"brightness",img,label,100*brightness_percent,1))
+            if contrast:
+                if(random.randint(0,100)>50):
+                    function_list.append((self.__brightness,"contrast",img,label,0,1.5))
+                else:
+                    function_list.append((self.__brightness,"contrast",img,label,0,0.7))
+            for fun in function_list:
+                new_img,yolo_labels=fun[0](*fun[2:])
+                cv2.imwrite(os.path.join(trainPath,"images", os.path.splitext(img)[0]+f"_{fun[1]}.jpg"),new_img)
+                self.__saveLabels(yolo_labels,os.path.join(trainPath,"labels", os.path.splitext(img)[0]+f"_{fun[1]}.txt"))
             image=self.readImage(os.path.join(self.__path,img))
             cv2.imwrite(os.path.join(trainPath,"images",img),image)
             shutil.copyfile(os.path.join(self.__path, label), os.path.join(trainPath,"labels",label))
-
-
         for data in val:
             img=data["img"]
             label=data["label"]
@@ -96,7 +90,6 @@ class DatasetCreator:
                     outfile.write(str(addedLabel["className"])+" "+f'{x:.5f}'+' '+f'{y:.5f}'+' '+f'{width:.5f}'+' '+f'{height:.5f}'+'\n')
         outfile.close() 
     def __mozaicMix(self,image_path,label_path,numberOfPoints=2):
-        #take random image with labels
         randomIndex=random.randint(0,len(self.__dataset)-1)
         allPoints=self.loadLabels(os.path.join(self.__path,self.__dataset[randomIndex]["label"]))
         addedLabels=[]
@@ -119,15 +112,13 @@ class DatasetCreator:
                 'className':label['className'],
                 'points':[x,y,width,height]
             })
-        #get random numbers
         randomPoints=random.sample(range(0,len(allPoints)),min(numberOfPoints,len(allPoints)))
         for randomPoint in randomPoints:
             if(randomPoint>=len(allPoints)):
                 break
-            p1=allPoints[randomPoint]
-            #crop that rectangle
-            x1,y1=p1['points'][0]
-            x2,y2=p1['points'][1]
+            p=allPoints[randomPoint]
+            x1,y1=p['points'][0]
+            x2,y2=p['points'][1]
 
             x1=x1*img.shape[1]
             y1=y1*img.shape[0]
@@ -136,36 +127,39 @@ class DatasetCreator:
             croppedClass=img[int(y1):int(y2),int(x1):int(x2)]
             if croppedClass.shape[1]<=2:
                 continue
-
-            x=random.randint(0,image.shape[1]-croppedClass.shape[1])
-            y=random.randint(0,image.shape[0]-croppedClass.shape[0])
-            maxIou=0.0
-            for label in labels:
-                x11,y11=label["points"][0]
-                x21,y21=label["points"][1]
-                x11=x11*img.shape[1]
-                y11=y11*img.shape[0]
-                x21=x21*img.shape[1]
-                y21=y21*img.shape[0]
-                boxA=(x11,y11,x21,y21)
-                boxB=(x,y,x+croppedClass.shape[1],y+croppedClass.shape[0])
-                iou=self.calculateIoU(boxa=boxA,boxb=boxB)
-                if iou>maxIou:
-                    maxIou=iou
+            x=0
+            y=0
+            maxIou=-1
+            iteration_count=0
+            while maxIou!=0 and iteration_count<3:
+                x=random.randint(0,image.shape[1]-croppedClass.shape[1])
+                y=random.randint(0,image.shape[0]-croppedClass.shape[0])
+                for label in labels:
+                    x11,y11=label["points"][0]
+                    x21,y21=label["points"][1]
+                    x11=x11*image.shape[1]
+                    y11=y11*image.shape[0]
+                    x21=x21*image.shape[1]
+                    y21=y21*image.shape[0]
+                    boxA=(x11,y11,x21,y21)
+                    boxB=(x,y,x+croppedClass.shape[1],y+croppedClass.shape[0])
+                    iou=self.calculateIoU(boxa=boxA,boxb=boxB)
+                    if iou>maxIou:
+                        maxIou=iou
+                iteration_count+=1
             if maxIou>=0.001:
                 continue
             labels.append({
-                "className":int(0),
+                "className":p["className"],
                 "points":[(x/img.shape[1],y/img.shape[0]),((x+croppedClass.shape[1])/img.shape[1],(y+croppedClass.shape[0])/img.shape[0])]
             })
-            #paste it on image
+            #zalijepi na originalnu sliku
             image[y:y+croppedClass.shape[0],x:x+croppedClass.shape[1]]=croppedClass
             x,y,width,height=self.pointsToYolov8Format((x,y),(x+croppedClass.shape[1],y+croppedClass.shape[0]),imgSize=image.shape)
             addedLabels.append({
-                'className':p1['className'],
+                'className':p['className'],
                 'points':[x,y,width,height]
             })
-            
         return [image,addedLabels]
     def __addNoise(self,image_path,label_path=None,percentOfNoise=0.02):
         noisy_image=self.readImage(os.path.join(self.__path,image_path))
@@ -181,16 +175,13 @@ class DatasetCreator:
                     'className':label['className'],
                     'points':[x,y,width,height]
                 })
-        # Generate random coordinates for the dots
         num_dots=int(noisy_image.shape[0]*noisy_image.shape[1]*percentOfNoise)
         x_coords = np.random.randint(0, noisy_image.shape[1], num_dots//2)
         y_coords = np.random.randint(0, noisy_image.shape[0], num_dots//2)
-        # Add black dots to the image
-        noisy_image[y_coords, x_coords] = [0, 0, 0]  # For RGB images
+        noisy_image[y_coords, x_coords] = [0, 0, 0]
         x_coords = np.random.randint(0, noisy_image.shape[1], num_dots//2)
         y_coords = np.random.randint(0, noisy_image.shape[0], num_dots//2)
-        noisy_image[y_coords, x_coords] = [255, 255, 255]  # For RGB images
-
+        noisy_image[y_coords, x_coords] = [255, 255, 255]
         return [noisy_image,yoloLabels]
     def __flipImageHorizontaly(self,image_path,label_path):
         image=self.readImage(os.path.join(self.__path,image_path))
