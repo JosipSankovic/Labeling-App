@@ -23,7 +23,7 @@ class DatasetCreator:
         self.__imgSize=imgSize
         datasetFolder=os.path.join(self.__path, "dataset")
         trainPath = os.path.join(datasetFolder, "train")
-        valPath = os.path.join(datasetFolder, "val")
+        valPath = os.path.join(datasetFolder, "valid")
         testPath = os.path.join(datasetFolder, "test")
         if os.path.exists(datasetFolder):
             shutil.rmtree(datasetFolder)
@@ -83,6 +83,7 @@ class DatasetCreator:
             image=self.readImage(os.path.join(self.__path,img))
             cv2.imwrite(os.path.join(testPath,"images",img),image)
             shutil.copyfile(os.path.join(self.__path, label), os.path.join(testPath,"labels",label))
+        self.createYAMLFile()
     def __saveLabels(self,labels,path):
         with open(path, 'a') as outfile:
                 for addedLabel in labels:
@@ -258,6 +259,24 @@ class DatasetCreator:
         if self.__imgSize !=(-1,-1):
                 image=cv2.resize(image,self.__imgSize)
         return image
+    def createYAMLFile(self):
+        classes=[]
+        with open(os.path.join(self.__path,"labels.txt"),"r") as file:
+            for line in file:
+                classes.append(line.split("\n")[0])
+        file.close()
+
+        with open(os.path.join(self.__path,"dataset","data.yaml"),"w") as yaml_file:
+            yaml_file.write("names:\n")
+            for cl in classes:
+                yaml_file.write(f"- \'{cl}\'\n")
+            yaml_file.write(f"nc: {str(len(classes))}\n")
+            yaml_file.write("train: /content/dataset/train/images\n")
+            yaml_file.write("val: /content/dataset/valid/images\n")
+            yaml_file.write("test: /content/dataset/test/images\n")
+        yaml_file.close()
+
+
     def calculateIoU(self,boxa,boxb):
         
         x1_min, y1_min, x1_max, y1_max = boxa
